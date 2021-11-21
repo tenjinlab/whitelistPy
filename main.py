@@ -2,7 +2,10 @@ import discord
 import json
 from discord import mentions
 from discord import guild
+from discord import file
 import regex as re
+import pandas as pd
+import os
 
 guildTemplate = {
     'whitelist_channel': None,
@@ -56,7 +59,6 @@ class MyClient(discord.Client):
 
     async def set_whitelist_role(self, message: discord.Message) -> None:
         roles = message.role_mentions
-        print(message.content)
         if len(roles) != 1 or not self.regex['role'].fullmatch(message.content):
             raise InvalidCommand()
         self.data[str(message.guild.id)]['whitelist_role'] = roles[0].id
@@ -82,7 +84,15 @@ class MyClient(discord.Client):
         await message.reply(embed=reply, mention_author=True)
 
     async def get_data(self, message):
-        return message
+        file_name = f'{message.guild.id}.csv'
+        with open(file_name, 'w+') as out_file:
+            out_file.write('userId, walletAddress\n')
+            out_file.writelines(
+                map(lambda t: f"{t[0]},{t[1]}\n", self.data[str(message.guild.id)]['data'].items()))
+            out_file.flush()
+        await message.reply('Data for server is attached.',
+                            file=discord.File(file_name))
+        os.remove(file_name)
 
     async def on_message(self, message):
         # we do not want the bot to reply to itself
