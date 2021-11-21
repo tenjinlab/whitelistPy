@@ -6,7 +6,15 @@ non_checksummed_patterns = (re.compile(
 sol_pattern = re.compile('[0-9a-zA-Z]{44}$')
 
 
-def validate_eth(addr):
+def validate_eth(addr: str) -> bool:
+    """Determines whether a given address is a valid public Ethereum address
+
+    Args:
+        addr (str): address that has been entered
+
+    Returns:
+        bool: True if the address is valid, false otherwise.
+    """
     address = addr
     if any(bool(pat.match(address))
             for pat in non_checksummed_patterns):
@@ -26,5 +34,13 @@ def validate_eth(addr):
     return True
 
 
-def validate_sol(addr):
+def validate_sol(addr: str) -> bool:
+    """Determines whether a given address is a valid public Solana address
+
+    Args:
+        addr (str): address that has been entered
+
+    Returns:
+        bool: True if the address is valid, false otherwise.
+    """
     return sol_pattern.fullmatch(addr)

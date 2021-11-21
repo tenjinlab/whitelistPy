@@ -8,23 +8,34 @@ import pandas as pd
 import os
 from validator import *
 
-guildTemplate = {
+GUILD_TEMPLATE = {
     'whitelist_channel': None,
     'whitelist_role': None,
     'blockchain': None,
     'data': {}
 }
-
 VALID_BLOCKCHAINS = ['eth', 'sol']
 
 
 class InvalidCommand(Exception):
+    """
+    An exception to be thrown when an invalid command is encountered
+    """
+
     def __init__(self):
         pass
 
 
-class MyClient(discord.Client):
+class WhitelistClient(discord.Client):
+    """
+    The discord client which manages all guilds and corrosponding data
+    """
+
     def __init__(self, data, *, loop=None, **options):
+        """
+        Args:
+            data (dict): A data dictionary stored in memory.
+        """
         super().__init__(loop=loop, **options)
         self.data = data
         self.commands = {
@@ -32,7 +43,8 @@ class MyClient(discord.Client):
             'role': self.set_whitelist_role,
             'blockchain': self.set_blockchain,
             'data': self.get_data,
-            'config': self.get_config
+            'config': self.get_config,
+            'clear': self.clear_data
         }
         self.validators = {
             'eth': validate_eth,
@@ -44,17 +56,26 @@ class MyClient(discord.Client):
             'blockchain': re.compile(">blockchain \w{3}")
         }
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         print('Logged in as')
         print(self.user.name)
         print(self.user.id)
-        print('------')
+        print("Initialising...")
         async for guild in self.fetch_guilds():
             if str(guild.id) not in self.data.keys():
                 print(f"Adding guild '{str(guild)}' to data.")
-                data[str(guild.id)] = guildTemplate.copy()
+                data[str(guild.id)] = GUILD_TEMPLATE.copy()
+        print("-------------")
 
-    async def set_whitelist_channel(self, message: discord.Message):
+    async def set_whitelist_channel(self, message: discord.Message) -> None:
+        """ Handles setting the channel that will be used for whitelisting
+
+        Args:
+            message (discord.Message): The discord message containing the command request
+
+        Raises:
+            InvalidCommand: The message structure was not as expected.
+        """
         channels = message.channel_mentions
         if len(channels) != 1 or not self.regex['channel'].fullmatch(message.content):
             raise InvalidCommand()
@@ -63,6 +84,14 @@ class MyClient(discord.Client):
                             mention_author=True)
 
     async def set_whitelist_role(self, message: discord.Message) -> None:
+        """ Handles setting the role that will be used for whitelisting
+
+        Args:
+            message (discord.Message): The discord message containing the command request
+
+        Raises:
+            InvalidCommand: The message structure was not as expected.
+        """
         roles = message.role_mentions
         if len(roles) != 1 or not self.regex['role'].fullmatch(message.content):
             raise InvalidCommand()
@@ -71,6 +100,14 @@ class MyClient(discord.Client):
                             mention_author=True)
 
     async def set_blockchain(self, message: discord.Message) -> None:
+        """ Handles setting the blockchain that will be used for validating wallet addresses.
+
+        Args:
+            message (discord.Message): The discord message containing the command request
+
+        Raises:
+            InvalidCommand: The message structure was not as expected.
+        """
         code = message.content[-3:]
         if code in VALID_BLOCKCHAINS:
             self.data[str(message.guild.id)]['blockchain'] = code
@@ -80,6 +117,11 @@ class MyClient(discord.Client):
             raise InvalidCommand()
 
     async def get_config(self, message: discord.Message) -> None:
+        """ Returns the current config of a given server to the user.
+
+        Args:
+            message (discord.Message): The discord message that sent the request.
+        """
         channelID = self.data[str(message.guild.id)]['whitelist_channel']
         roleID = self.data[str(message.guild.id)]['whitelist_role']
         blockchain = self.data[str(message.guild.id)]['blockchain']
@@ -88,7 +130,12 @@ class MyClient(discord.Client):
             title=f'Config for {message.guild}', description=replyStr)
         await message.reply(embed=reply, mention_author=True)
 
-    async def get_data(self, message):
+    async def get_data(self, message: discord.Message) -> None:
+        """ Sends a CSV file to the user containing the current data stored by the bot
+
+        Args:
+            message (discord.Message): The discord message that sent the request.
+        """
         file_name = f'{message.guild.id}.csv'
         with open(file_name, 'w+') as out_file:
             out_file.write('userId, walletAddress\n')
@@ -99,7 +146,21 @@ class MyClient(discord.Client):
                             file=discord.File(file_name))
         os.remove(file_name)
 
-    async def on_message(self, message):
+    async def clear_data(self, message: discord.Message) -> None:
+        """ Clears the data and config currently stored by the bot regarding the current server
+
+        Args:
+            message (discord.Message): The discord message that sent the request.
+        """
+        self.data[str(message.guild.id)] = GUILD_TEMPLATE
+        await message.reply("Server's data and config has been cleared.")
+
+    async def on_message(self, message: discord.Message) -> None:
+        """ Responds to the 'on_message' event. Runs the appropriate commands given the user has valid privellages.
+
+        Args:
+            message (discord.Message): The discord message that sent the request.
+        """
         # we do not want the bot to reply to itself
         if message.author.id == self.user.id:
             return
@@ -113,18 +174,19 @@ class MyClient(discord.Client):
                 except InvalidCommand:
                     await message.reply("Invalid command argument.", mention_author=True)
             else:
-                await message.reply(f"Valid commands are: {list(self.commands.keys())}")
+                await message.reply(f"Valid commands are: `{list(self.commands.keys())}`")
 
+        # Handle whitelist additions
         if (message.channel.id == self.data[str(message.guild.id)]['whitelist_channel']
             and (self.data[str(message.guild.id)]['whitelist_role']
-                 in map(lambda x: x.id, message.author.roles))):
+                 in map(lambda x: x.id, message.author.roles))) and not message.content.startswith(">"):
             if self.validators[self.data[str(message.guild.id)]['blockchain']](message.content):
                 self.data[str(message.guild.id)]['data'][str(
                     message.author.id)] = message.content
                 await message.reply(
-                    f"Your wallet '{message.content}' has been validated and recorded.", mention_author=True)
+                    f"Your wallet `{message.content}`` has been validated and recorded.", mention_author=True)
             else:
-                await message.reply(f"The address {message.content} is invalid.")
+                await message.reply(f"The address `{message.content}` is invalid.")
 
 
 if __name__ == '__main__':
@@ -135,7 +197,7 @@ if __name__ == '__main__':
             data = json.load(data_file)
     except FileNotFoundError:
         data = {}
-    client = MyClient(data)
+    client = WhitelistClient(data)
     client.run(key)
     with open('data.json', 'w') as out_file:
         json.dump(data, out_file)
