@@ -1,7 +1,6 @@
 # whitelistPy
-A discord bot to assist in recording wallet addresses for NFT drops.
 
-Whitelist Manager is a bot designed to assist you in gathering wallet addresses for NFT drops.
+Whitelist Manager is a discord bot designed to assist you in gathering wallet addresses for NFT drops.
 After configuring the discord bot, users who are 'whitelisted' will be able to record their crypto addresses which you can then download as a CSV.
 Note, the config must be filled out before the bot will work.
 
