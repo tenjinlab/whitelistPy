@@ -5,6 +5,8 @@ After configuring the discord bot, users who are 'whitelisted' will be able to r
 Note, the config must be filled out before the bot will work.
 
 ## COMMANDS
+Note: you must be administrator to be able to access commands.
+
 **>channel #channelName**: Sets the channel to listen for wallet addresses on.
 
 **>role @roleName**: Sets the role a user must possess to be able to add their address to the whitelist.
