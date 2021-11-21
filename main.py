@@ -7,6 +7,7 @@ import regex as re
 import pandas as pd
 import os
 from validator import *
+import asyncio
 
 GUILD_TEMPLATE = {
     'whitelist_channel': None,
@@ -44,7 +45,8 @@ class WhitelistClient(discord.Client):
             'blockchain': self.set_blockchain,
             'data': self.get_data,
             'config': self.get_config,
-            'clear': self.clear_data
+            'clear': self.clear_data,
+            'help': self.help
         }
         self.validators = {
             'eth': validate_eth,
@@ -55,6 +57,10 @@ class WhitelistClient(discord.Client):
             'role': re.compile(">role <@&\d+>$"),
             'blockchain': re.compile(">blockchain \w{3}")
         }
+
+    def backup_data(self) -> None:
+        with open('data.json', 'w+') as out_file:
+            json.dump(self.data, out_file)
 
     async def on_ready(self) -> None:
         print('Logged in as')
@@ -155,6 +161,19 @@ class WhitelistClient(discord.Client):
         self.data[str(message.guild.id)] = GUILD_TEMPLATE
         await message.reply("Server's data and config has been cleared.")
 
+    async def help(self, message: discord.Message) -> None:
+        """ Returns a window that provides some help messages regarding how to use the bot.
+
+        Args:
+            message (discord.Message): The discord message that sent the request.
+        """
+        msg = discord.Embed(title="Whitelist Manager Help")
+        desc = "Whitelist Manager is a bot designed to assist you in gathering wallet addresses for NFT drops.\nAfter configuring the discord bot, users who are 'whitelisted' will be able to record their crypto addresses which you can then download as a CSV.\nNote, the `config` must be filled out before the bot will work."
+        body = "`>channel #channelName`: Sets the channel to listen for wallet addresses on.\n`>role @roleName`: Sets the role a user must possess to be able to add their address to the whitelist.\n`>blockchain eth/sol`: Select which blockchain this NFT drop will occur on, this allows for validation of the addresses that are added.\n`>config`: View the current server config.\n`>data`: Get discordID:walletAddress pairs in a CSV format.\n`>clear`: Clear the config and data for this server.\n`>help`: This screen."
+        msg.description = desc
+        msg.add_field(name="COMMANDS", value=body)
+        await message.reply(embed=msg)
+
     async def on_message(self, message: discord.Message) -> None:
         """ Responds to the 'on_message' event. Runs the appropriate commands given the user has valid privellages.
 
@@ -184,7 +203,8 @@ class WhitelistClient(discord.Client):
                 self.data[str(message.guild.id)]['data'][str(
                     message.author.id)] = message.content
                 await message.reply(
-                    f"Your wallet `{message.content}`` has been validated and recorded.", mention_author=True)
+                    f"Your wallet `{message.content}` has been validated and recorded.", mention_author=True)
+                self.backup_data()
             else:
                 await message.reply(f"The address `{message.content}` is invalid.")
 
@@ -199,5 +219,3 @@ if __name__ == '__main__':
         data = {}
     client = WhitelistClient(data)
     client.run(key)
-    with open('data.json', 'w') as out_file:
-        json.dump(data, out_file)
