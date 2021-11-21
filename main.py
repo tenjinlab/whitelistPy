@@ -6,6 +6,7 @@ from discord import file
 import regex as re
 import pandas as pd
 import os
+from validator import *
 
 guildTemplate = {
     'whitelist_channel': None,
@@ -32,6 +33,10 @@ class MyClient(discord.Client):
             'blockchain': self.set_blockchain,
             'data': self.get_data,
             'config': self.get_config
+        }
+        self.validators = {
+            'eth': validate_eth,
+            'sol': validate_sol
         }
         self.regex = {
             'channel': re.compile(">channel <#\d+>$"),
@@ -110,24 +115,26 @@ class MyClient(discord.Client):
             else:
                 await message.reply(f"Valid commands are: {list(self.commands.keys())}")
 
-        elif (message.channel.id == self.data[str(message.guild.id)]['whitelist_channel']
-              and (self.data[str(message.guild.id)]['whitelist_role']
-                   in map(lambda x: x.id, message.author.roles))):
-            self.data[str(message.guild.id)]['data'][str(
-                message.author.id)] = message.content
-            await message.reply(
-                f"Your wallet '{message.content}' has been validated and recorded.", mention_author=True)
+        if (message.channel.id == self.data[str(message.guild.id)]['whitelist_channel']
+            and (self.data[str(message.guild.id)]['whitelist_role']
+                 in map(lambda x: x.id, message.author.roles))):
+            if self.validators[self.data[str(message.guild.id)]['blockchain']](message.content):
+                self.data[str(message.guild.id)]['data'][str(
+                    message.author.id)] = message.content
+                await message.reply(
+                    f"Your wallet '{message.content}' has been validated and recorded.", mention_author=True)
+            else:
+                await message.reply(f"The address {message.content} is invalid.")
 
 
 if __name__ == '__main__':
     with open('key', 'r') as in_file:
         key = in_file.read()
-    with open('data.json', 'r') as data_file:
-        try:
+    try:
+        with open('data.json', 'r') as data_file:
             data = json.load(data_file)
-        except json.decoder.JSONDecodeError as e:
-            print(e)
-            data = {}
+    except FileNotFoundError:
+        data = {}
     client = MyClient(data)
     client.run(key)
     with open('data.json', 'w') as out_file:
