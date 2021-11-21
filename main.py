@@ -1,13 +1,17 @@
 import discord
 import json
 from discord import mentions
+from discord import guild
 import regex as re
 
 guildTemplate = {
     'whitelist_channel': None,
     'whitelist_role': None,
+    'blockchain': None,
     'data': {}
 }
+
+VALID_BLOCKCHAINS = ['eth', 'sol']
 
 
 class InvalidCommand(Exception):
@@ -27,7 +31,9 @@ class MyClient(discord.Client):
             'config': self.get_config
         }
         self.regex = {
-            'channel': re.compile(">channel <#\d+>$")
+            'channel': re.compile(">channel <#\d+>$"),
+            'role': re.compile(">role <@&\d+>$"),
+            'blockchain': re.compile(">blockchain \w{3}")
         }
 
     async def on_ready(self):
@@ -45,17 +51,35 @@ class MyClient(discord.Client):
         if len(channels) != 1 or not self.regex['channel'].fullmatch(message.content):
             raise InvalidCommand()
         self.data[str(message.guild.id)]['whitelist_channel'] = channels[0].id
-        await message.reply("Successfully set whitelist channel.",
+        await message.reply(f"Successfully set whitelist channel to <#{channels[0].id}>",
                             mention_author=True)
 
-    async def set_whitelist_role(self, message):
-        return message
+    async def set_whitelist_role(self, message: discord.Message) -> None:
+        roles = message.role_mentions
+        print(message.content)
+        if len(roles) != 1 or not self.regex['role'].fullmatch(message.content):
+            raise InvalidCommand()
+        self.data[str(message.guild.id)]['whitelist_role'] = roles[0].id
+        await message.reply(f"Successfully set whitelist role to <@&{roles[0].id}>",
+                            mention_author=True)
 
-    async def set_blockchain(self, message):
-        return message
+    async def set_blockchain(self, message: discord.Message) -> None:
+        code = message.content[-3:]
+        if code in VALID_BLOCKCHAINS:
+            self.data[str(message.guild.id)]['blockchain'] = code
+            await message.reply(f"Successfully set blockchain to {code}",
+                                mention_author=True)
+        else:
+            raise InvalidCommand()
 
-    async def get_config(self, message):
-        return message
+    async def get_config(self, message: discord.Message) -> None:
+        channelID = self.data[str(message.guild.id)]['whitelist_channel']
+        roleID = self.data[str(message.guild.id)]['whitelist_role']
+        blockchain = self.data[str(message.guild.id)]['blockchain']
+        replyStr = f"Whitelist Channel: <#{channelID}>\nWhitelist Role: <@&{roleID}>\nBlockchain: {blockchain}"
+        reply = discord.Embed(
+            title=f'Config for {message.guild}', description=replyStr)
+        await message.reply(embed=reply, mention_author=True)
 
     async def get_data(self, message):
         return message
